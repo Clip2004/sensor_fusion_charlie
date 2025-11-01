@@ -3,7 +3,6 @@ from rclpy.node import Node
 from geometry_msgs.msg import TwistStamped
 from std_msgs.msg import Float32MultiArray
 import numpy as np
-from scipy import signal
 import math
 
 
@@ -13,74 +12,80 @@ class VelocityModelNodeCharlie(Node):
 
         # === Parámetros ===
         self.dt = 0.05  # tiempo de muestreo (s)
+        self.K = 0.026482
+        self.tau = 0.20236
         self.max_angle_deg = 45.0
         self.min_angle_deg = -45.0
 
-        # === Modelo de velocidad (función de transferencia discretizada) ===
-        # Ejemplo: G(s) = 1 / (0.5s + 1)
-        num = [0.026482]
-        den = [0.20236, 1.0]
-        system = signal.TransferFunction(num, den)
-        self.sysd = system.to_discrete(self.dt, method='zoh')
+        # === Discretización (Euler hacia atrás) ===
+        self.a1 = self.tau / (self.tau + self.dt)
+        self.b0 = (self.dt * self.K) / (self.tau + self.dt)
 
-        # Guardamos coeficientes discretos
-        self.b = self.sysd.num[0]
-        self.a = self.sysd.den[0]
+        # Estado previo
+        self.y_prev = 0.0
 
-        # Estados del filtro (inicializados en cero)
-        self.u_hist = np.zeros(len(self.b))
-        self.y_hist = np.zeros(len(self.a))
-
-        # === Suscriptor a comandos Twist ===
+        # === Suscriptor y publicador ===
         self.sub = self.create_subscription(
             TwistStamped,
             '/cmd_vel',
             self.cmd_callback,
-            10)
+            10
+        )
 
-        # === Publicador de salida (Float32MultiArray) ===
         self.pub = self.create_publisher(Float32MultiArray, '/bicycle_inputs', 10)
 
+        # Timer de actualización
         self.timer = self.create_timer(self.dt, self.update)
 
-        # Variables de entrada actual
-        self.input_velocity = 0.0
+        # Variables de entrada actuales
+        self.input_velocity_cmd = 0.0
         self.input_steer_cmd = 0.0
 
-        self.get_logger().info('Nodo Velocity Model iniciado.')
+        self.get_logger().info('Nodo Velocity Model (con escalamiento) iniciado.')
 
     # --- Callback de entrada ---
     def cmd_callback(self, msg):
-        self.input_velocity = msg.twist.linear.x   # entrada al modelo de velocidad
-        self.input_steer_cmd = msg.twist.angular.x # comando de dirección
+        self.input_velocity_cmd = msg.twist.linear.x   # [-0.5, 0.5]
+        self.input_steer_cmd = msg.twist.angular.z     # [-0.5, 0.5]
+        
+    def aplicar_deadzone(self, u_pwm, deadzone=60, max_pwm=100):
+        if abs(u_pwm) < deadzone:
+            return 0.0
+        else:
+            # Escala linealmente desde el umbral hasta el máximo
+            return np.sign(u_pwm) * (abs(u_pwm) - deadzone) / (max_pwm - deadzone)
 
     # --- Actualización del modelo ---
     def update(self):
-        # Filtrado de velocidad (modelo dinámico)
-        u = self.input_velocity
+        # === 1. Escalamiento de entrada de velocidad ===
+        # De [-0.5, 0.5] → [-100, 100]
+        u_pwm = np.clip(self.input_velocity_cmd, -0.5, 0.5) * 200.0
 
-        # Desplazamos los históricos
-        self.u_hist = np.roll(self.u_hist, 1)
-        self.y_hist = np.roll(self.y_hist, 1)
-        self.u_hist[0] = u
+        # === 2. Aplicar zona muerta ===
+        u_eff = self.aplicar_deadzone(u_pwm, deadzone=60, max_pwm=100)
 
-        # Ecuación de diferencia (filtro IIR)
-        y = (np.dot(self.b, self.u_hist) - np.dot(self.a[1:], self.y_hist[1:])) / self.a[0]
-        self.y_hist[0] = y
+        # Escalamos u_eff al rango [0,1] para el modelo
+        u_model = u_eff  # ya está normalizado a [-1,1]
 
-        # Remapeo del ángulo de dirección (-1 a 1) → (-45°, 45°)
-        steer_norm = max(min(self.input_steer_cmd, 0.5), -0.5)
-        steer_angle = math.radians(
-            (steer_norm * (self.max_angle_deg - self.min_angle_deg) / 2.0)
-        )
+        # === 3. Ecuación en diferencias (modelo dinámico) ===
+        y = self.a1 * self.y_prev + self.b0 * (u_model * 100.0)  # reescalar según tu ganancia
+        self.y_prev = y
 
-        # Publicar mensaje con [velocidad, ángulo]
+        # === 4. Remapeo del ángulo de dirección ===
+        steer_norm = np.clip(self.input_steer_cmd, -0.5, 0.5)
+        steer_angle_deg = steer_norm * (self.max_angle_deg / 0.5)
+        steer_angle_rad = math.radians(steer_angle_deg)
+
+        # === 5. Publicar salida ===
         msg = Float32MultiArray()
-        msg.data = [float(y), float(steer_angle)]
+        msg.data = [float(y), float(steer_angle_rad)]
         self.pub.publish(msg)
 
-        # Log de depuración
-        self.get_logger().info(f"u1={y:.2f} m/s, u2={math.degrees(steer_angle):.2f}°")
+        # === Log ===
+        self.get_logger().info(
+            f"PWM={u_pwm:.1f}, Efectivo={u_eff:.2f}, Salida={y:.2f} m/s, Dirección={steer_angle_deg:.1f}°"
+        )
+
 
 
 def main(args=None):

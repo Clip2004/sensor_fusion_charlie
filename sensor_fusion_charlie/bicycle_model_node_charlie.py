@@ -1,8 +1,9 @@
 import rclpy
 from rclpy.node import Node
 import math
-from geometry_msgs.msg import Pose2D
+from geometry_msgs.msg import Pose
 from std_msgs.msg import Float32MultiArray
+from tf_transformations import quaternion_from_euler
 
 
 class BicycleModelNodeCharlie(Node):
@@ -30,7 +31,7 @@ class BicycleModelNodeCharlie(Node):
             10)
 
         # --- Publicador de estados ---
-        self.pub = self.create_publisher(Pose2D, 'bicycle_state', 10)
+        self.pub = self.create_publisher(Pose, '/robot1/pose', 10)
 
         # --- Timer principal ---
         self.timer = self.create_timer(self.dt, self.update)
@@ -38,6 +39,9 @@ class BicycleModelNodeCharlie(Node):
         self.get_logger().info('Nodo Bicycle Model iniciado.')
 
     def inputs_callback(self, msg):
+        if len(msg.data) < 2:
+            self.get_logger().warn('Mensaje de entradas incompleto.')
+            return
         # msg.data = [u1, u2]
         self.u1 = msg.data[0]
         self.u2 = msg.data[1]
@@ -52,18 +56,25 @@ class BicycleModelNodeCharlie(Node):
         self.x += x_dot * self.dt
         self.y += y_dot * self.dt
         self.psi += psi_dot * self.dt
+        
+        # Convertir a cuaternión para ROS
+        qx, qy, qz, qw = quaternion_from_euler(0, 0, self.psi)
 
-        # --- Publicar estado ---
-        state = Pose2D()
-        state.x = self.x
-        state.y = self.y
-        state.theta = self.psi
-        self.pub.publish(state)
+        # Crear mensaje Pose
+        pose_msg = Pose()
+        pose_msg.position.x = float(self.x)
+        pose_msg.position.y = float(self.y)
+        pose_msg.position.z = 0.0
+        pose_msg.orientation.x = float(qx)
+        pose_msg.orientation.y = float(qy)
+        pose_msg.orientation.z = float(qz)
+        pose_msg.orientation.w = float(qw)
+        self.pub.publish(pose_msg)
 
         # --- Log opcional ---
-        self.get_logger().info(f"x={self.x:.2f}, y={self.y:.2f}, psi={self.psi:.2f}")
-
-
+        self.get_logger().info(
+            f"x={self.x:.2f} m, y={self.y:.2f} m, θ={math.degrees(self.psi):.1f}°, v={self.u1:.2f} m/s, δ={math.degrees(self.u2):.1f}°"
+        )
 def main(args=None):
     rclpy.init(args=args)
     node = BicycleModelNodeCharlie()

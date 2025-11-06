@@ -22,6 +22,7 @@ setup(
             'yaw_estimation_node_charlie = sensor_fusion_charlie.yaw_estimation_node_charlie:main',
             'bicycle_model_node_charlie = sensor_fusion_charlie.bicycle_model_node_charlie:main',
             'velocity_model_node_charlie = sensor_fusion_charlie.velocity_model_node_charlie:main',
+            'madgwick_filter_node_charlie = sensor_fusion_charlie.madgwick_filter_node_charlie:main',
         ],
     },
 )

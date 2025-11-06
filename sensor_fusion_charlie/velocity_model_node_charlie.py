@@ -20,7 +20,7 @@ class VelocityModelNodeCharlie(Node):
 
         # === Límite de PWM ===
         self.enable_pwm_limit = True  # Habilitar/deshabilitar límite de PWM
-        self.max_pwm_percent = 0.7  # Límite de PWM: ±70%
+        self.max_pwm_percent = 0.8  # Límite de PWM: ±70%
 
         # === Discretización (Euler hacia atrás) ===
         self.a1 = self.tau / (self.tau + self.dt)

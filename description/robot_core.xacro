@@ -1,0 +1,211 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="ackermann_robot">
+
+  <!-- === Includes === -->
+  <xacro:include filename="properties.xacro"/>  <!-- ✅ Incluye colores -->
+
+  <!-- === Parámetros del vehículo === -->
+  <xacro:property name="wheelbase" value="0.26"/>         <!-- Distancia entre ejes -->
+  <xacro:property name="front_track" value="0.235"/>      <!-- Ancho del eje delantero -->
+  <xacro:property name="rear_track" value="0.235"/>       <!-- Ancho del eje trasero -->
+  <xacro:property name="wheel_radius" value="0.049"/>     <!-- Radio de rueda -->
+  <xacro:property name="wheel_width" value="0.04"/>       <!-- Ancho de rueda -->
+  <xacro:property name="chassis_height" value="0.05"/>    <!-- Altura del chasis -->
+
+  <!-- === FRAME PRINCIPAL: odom -> base_link2 === -->
+  <link name="odom2"/>
+  <link name="base_link2"/>
+
+  <joint name="odom_to_base_link" type="fixed">
+    <parent link="odom2"/>
+    <child link="base_link2"/>
+    <origin xyz="0 0 0" rpy="0 0 0"/>
+  </joint>
+
+  <!-- === base_link2 -> base_footprint === -->
+  <link name="base_footprint"/>
+  <joint name="base_footprint_joint" type="fixed">
+    <parent link="base_link2"/>
+    <child link="base_footprint"/>
+    <origin xyz="0 0 0" rpy="0 0 0"/>
+  </joint>
+
+  <!-- === Chasis === -->
+  <link name="chassis">
+    <visual>
+      <origin xyz="0 0 ${chassis_height}"/>
+      <geometry>
+        <box size="0.30 0.25 0.10"/>
+      </geometry>
+      <material name="gray"/>  <!-- color importado -->
+    </visual>
+    <collision>
+      <origin xyz="0 0 ${chassis_height}"/>
+      <geometry>
+        <box size="0.30 0.25 0.10"/>
+      </geometry>
+    </collision>
+  </link>
+
+  <joint name="base_to_chassis" type="fixed">
+    <parent link="base_link2"/>
+    <child link="chassis"/>
+    <origin xyz="0 0 0" rpy="0 0 0"/>
+  </joint>
+
+  <!-- === RUEDAS DELANTERAS (con dirección) === -->
+
+  <!-- Front Left -->
+  <joint name="fl_steer_joint" type="continuous">
+    <parent link="chassis"/>
+    <child link="front_left_steer_link"/>
+    <origin xyz="${wheelbase/2} ${front_track/2} 0"/>
+    <axis xyz="0 0 1"/>
+  </joint>
+
+  <link name="front_left_steer_link"/>
+
+  <joint name="fl_wheel_joint" type="continuous">
+    <parent link="front_left_steer_link"/>
+    <child link="front_left_wheel"/>
+    <origin xyz="0 0 0"/>
+    <axis xyz="0 1 0"/>
+  </joint>
+
+  <link name="front_left_wheel">
+    <visual>
+      <geometry>
+        <cylinder radius="${wheel_radius}" length="${wheel_width}"/>
+      </geometry>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <material name="black"/>  <!-- color importado -->
+    </visual>
+    <collision>
+      <geometry>
+        <cylinder radius="${wheel_radius}" length="${wheel_width}"/>
+      </geometry>
+    </collision>
+  </link>
+
+  <!-- Front Right -->
+  <joint name="fr_steer_joint" type="continuous">
+    <parent link="chassis"/>
+    <child link="front_right_steer_link"/>
+    <origin xyz="${wheelbase/2} -${front_track/2} 0"/>
+    <axis xyz="0 0 1"/>
+  </joint>
+
+  <link name="front_right_steer_link"/>
+
+  <joint name="fr_wheel_joint" type="continuous">
+    <parent link="front_right_steer_link"/>
+    <child link="front_right_wheel"/>
+    <origin xyz="0 0 0"/>
+    <axis xyz="0 1 0"/>
+  </joint>
+
+  <link name="front_right_wheel">
+    <visual>
+      <geometry>
+        <cylinder radius="${wheel_radius}" length="${wheel_width}"/>
+      </geometry>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <material name="black"/>
+    </visual>
+    <collision>
+      <geometry>
+        <cylinder radius="${wheel_radius}" length="${wheel_width}"/>
+      </geometry>
+    </collision>
+  </link>
+
+  <!-- === RUEDAS TRASERAS === -->
+
+  <!-- Rear Left -->
+  <joint name="rl_wheel_joint" type="continuous">
+    <parent link="chassis"/>
+    <child link="rear_left_wheel"/>
+    <origin xyz="-${wheelbase/2} ${rear_track/2} 0"/>
+    <axis xyz="0 1 0"/>
+  </joint>
+
+  <link name="rear_left_wheel">
+    <visual>
+      <geometry>
+        <cylinder radius="${wheel_radius}" length="${wheel_width}"/>
+      </geometry>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <material name="black"/>
+    </visual>
+    <collision>
+      <geometry>
+        <cylinder radius="${wheel_radius}" length="${wheel_width}"/>
+      </geometry>
+    </collision>
+  </link>
+
+  <!-- Rear Right -->
+  <joint name="rr_wheel_joint" type="continuous">
+    <parent link="chassis"/>
+    <child link="rear_right_wheel"/>
+    <origin xyz="-${wheelbase/2} -${rear_track/2} 0"/>
+    <axis xyz="0 1 0"/>
+  </joint>
+
+  <link name="rear_right_wheel">
+    <visual>
+      <geometry>
+        <cylinder radius="${wheel_radius}" length="${wheel_width}"/>
+      </geometry>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <material name="black"/>
+    </visual>
+    <collision>
+      <geometry>
+        <cylinder radius="${wheel_radius}" length="${wheel_width}"/>
+      </geometry>
+    </collision>
+  </link>
+
+  <!-- === SENSORES === -->
+
+  <!-- LIDAR -->
+  <link name="laser_frame">
+    <visual>
+      <origin xyz="0 0 0"/>
+      <geometry>
+        <cylinder radius="0.03" length="0.04"/>
+      </geometry>
+      <material name="red"/>
+    </visual>
+    <collision>
+      <geometry>
+        <cylinder radius="0.03" length="0.04"/>
+      </geometry>
+    </collision>
+  </link>
+
+  <joint name="laser_joint" type="fixed">
+    <parent link="base_link2"/>
+    <child link="laser_frame"/>
+    <origin xyz="0.13 0.0 0.13" rpy="0 0 ${pi}"/>
+  </joint>
+
+  <!-- IMU -->
+  <link name="imu_link">
+    <visual>
+      <origin xyz="0 0 0"/>
+      <geometry>
+        <box size="0.03 0.03 0.02"/>
+      </geometry>
+      <material name="blue"/>
+    </visual>
+  </link>
+
+  <joint name="imu_joint" type="fixed">
+    <parent link="base_link2"/>
+    <child link="imu_link"/>
+    <origin xyz="-0.02 0.0 0.02" rpy="0 ${pi} ${pi/2}"/>
+  </joint>
+
+</robot>

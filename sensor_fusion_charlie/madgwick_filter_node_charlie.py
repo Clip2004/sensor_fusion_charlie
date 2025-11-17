@@ -26,6 +26,40 @@ def quat_to_yaw(w, x, y, z) -> float:
 def wrap_pi(a):
     return (a + math.pi) % (2.0 * math.pi) - math.pi
 
+def quaternion_from_euler(ai, aj, ak):
+    """
+    Convert intrinsic Euler angles (roll=ai, pitch=aj, yaw=ak)
+    into a quaternion [x, y, z, w].
+
+    Args:
+        ai (float): roll angle in radians
+        aj (float): pitch angle in radians
+        ak (float): yaw angle in radians
+
+    Returns:
+        np.ndarray: quaternion [x, y, z, w] representing the same orientation
+    """
+    ai /= 2.0
+    aj /= 2.0
+    ak /= 2.0
+    ci = math.cos(ai)
+    si = math.sin(ai)
+    cj = math.cos(aj)
+    sj = math.sin(aj)
+    ck = math.cos(ak)
+    sk = math.sin(ak)
+    cc = ci*ck
+    cs = ci*sk
+    sc = si*ck
+    ss = si*sk
+
+    q = Quaternion()
+    q.x = cj*sc - sj*cs
+    q.y = cj*ss + sj*cc
+    q.z = cj*cs - sj*sc
+    q.w = cj*cc + sj*ss
+
+    return q
 # === NEW: Minimal Madgwick (gyro+accel; optional mag) ===
 class MadgwickAHRS:
     def __init__(self):       
@@ -103,7 +137,7 @@ class AckermannKinematics(Node):
         # Geometry (meters)
         self.declare_parameter('wheelbase', 0.26)
         self.declare_parameter('front_track', 0.235)
-        self.declare_parameter('wheel_radius', 0.0125)
+        self.declare_parameter('wheel_radius', 0.098/2)
 
         # Frames
         self.declare_parameter('odom_frame', 'odom2')
@@ -116,8 +150,8 @@ class AckermannKinematics(Node):
         self.declare_parameter('scan_topic', '/scan')           # ⬅️ NUEVO
         self.declare_parameter('scan_republish_topic', '/scan2') # ⬅️ NUEVO
         # Timing / limits
-        self.declare_parameter('rate', 50.0)
-        self.declare_parameter('max_steer', 0.7)
+        self.declare_parameter('rate', 20.0)
+        self.declare_parameter('max_steer', 0.5)
         self.declare_parameter('steer_slew', 10.0)
         self.declare_parameter('publish_tf', True)
         self.declare_parameter('max_velocity_limit', 0.65)  # ⬅️ NUEVO: Límite del 80%
@@ -138,11 +172,11 @@ class AckermannKinematics(Node):
         self.declare_parameter('right_steer_mul', 1.0)
 
         # IMU & fusion params
-        self.declare_parameter('imu_topic', '/imu')
-        self.declare_parameter('mag_topic', '/mag')
+        self.declare_parameter('imu_topic', '/imu/data_raw')
+        self.declare_parameter('mag_topic', '/imu/mag')
         self.declare_parameter('use_imu', True)
-        self.declare_parameter('madgwick_beta', 0.05)
-        self.declare_parameter('yaw_fuse_gain', 0.03)
+        self.declare_parameter('madgwick_beta', 0.1)
+        self.declare_parameter('yaw_fuse_gain', 0.9)
         self.declare_parameter('auto_yaw_align', True)
         self.declare_parameter('max_yaw_innov', 0.35)
         self.declare_parameter('accel_min_g', 6.0)
@@ -183,7 +217,7 @@ class AckermannKinematics(Node):
         self.theta_fl = 0.0; self.theta_fr = 0.0; self.theta_rl = 0.0; self.theta_rr = 0.0
 
         # Joystick velocity model - Discretización Euler hacia atrás (MENOS INERCIA)
-        K = 0.026482
+        K = 0.026482*1.3
         tau = 0.20236
         Ts = 1.0 / self.rate_hz  # Período de muestreo
         
@@ -271,7 +305,7 @@ class AckermannKinematics(Node):
         #  - rely on your IMU driver’s orientation output (preferred).
         # Placeholder: ignored (kept simple).
         pass
-    def aplicar_deadzone(self, u_input, deadzone=60, max_input=100):
+    def aplicar_deadzone(self, u_input, deadzone=50, max_input=100):
         """
         Aplica zona muerta y remapea el rango útil
         Args:
@@ -392,7 +426,7 @@ class AckermannKinematics(Node):
         else:
             # No IMU → pure model
             self.yaw = yaw_pred
-
+        self.get_logger().info('Yaw: {:.3f} deg'.format(math.degrees(-self.yaw)))
         # Usar timestamp actual del sistema (no del timer)
         now = self.get_clock().now().to_msg()
         
@@ -404,7 +438,7 @@ class AckermannKinematics(Node):
         odom.pose.pose.position.x = self.x
         odom.pose.pose.position.y = self.y
         odom.pose.pose.position.z = 0.0
-        odom.pose.pose.orientation = yaw_to_quat(self.yaw)
+        odom.pose.pose.orientation = yaw_to_quat(-self.yaw)
         odom.twist.twist.linear.x = v
         odom.twist.twist.angular.z = wz_model
         # Minimal covariances (tune as needed)
@@ -424,7 +458,7 @@ class AckermannKinematics(Node):
             t.transform.translation.x = self.x
             t.transform.translation.y = self.y
             t.transform.translation.z = 0.0
-            t.transform.rotation = yaw_to_quat(self.yaw)
+            t.transform.rotation = yaw_to_quat(-self.yaw)
             self.tf_pub.sendTransform(t)
 
             # --- base_link2 -> base_footprint (frame para SLAM) ---
@@ -451,6 +485,17 @@ class AckermannKinematics(Node):
             t2.transform.translation.z = 0.13
             t2.transform.rotation = yaw_to_quat(np.pi)
             self.tf_pub.sendTransform(t2)
+
+            t3 = TransformStamped()
+            t3.header.stamp = now
+            t3.header.frame_id = "base_link2"
+            t3.child_frame_id = "imu_link"
+            t3.transform.translation.x = -0.02
+            t3.transform.translation.y = 0.0
+            t3.transform.translation.z = 0.02
+            t3.transform.rotation = quaternion_from_euler(0.0, np.pi,np.pi/2.0 )
+            self.tf_pub.sendTransform(t3)
+
         # === ⬅️ NUEVO: Republicar scan con timestamp sincronizado ===
         if self.latest_scan is not None:
             scan_copy = LaserScan()

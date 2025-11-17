@@ -1,3 +1,5 @@
+from glob import glob
+import os
 from setuptools import setup, find_packages
 
 package_name = 'sensor_fusion_charlie'
@@ -9,7 +11,8 @@ setup(
     data_files=[
         ('share/ament_index/resource_index/packages', ['resource/' + package_name]),
         ('share/' + package_name, ['package.xml']),
-        ('share/' + package_name + '/launch', ['launch/sensor_fusion.launch.py']),
+        (os.path.join('share', package_name, 'description'), glob('description/*.xacro')),
+        ('share/' + package_name + '/launch', ['launch/sensor_fusion.launch.py','launch/display.launch.py']),
     ],
     install_requires=['setuptools'],
     zip_safe=True,

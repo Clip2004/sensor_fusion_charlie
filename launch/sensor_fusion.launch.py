@@ -26,14 +26,18 @@ def generate_launch_description():
                           executable='velocity_model_node_charlie',
                           name='velocity_model_node_charlie',
     )
-    yaw_estimation_node_charlie = Node(package=package_name,
-                          executable='yaw_estimation_node_charlie',
-                          name='yaw_gyro_filtered_node',
+    # yaw_estimation_node_charlie = Node(package=package_name,
+    #                       executable='yaw_estimation_node_charlie',
+    #                       name='yaw_gyro_filtered_node',
+    # )
+    pose_broadcaster_node_charlie = Node(package=package_name,
+                          executable='pose_broadcaster_node_charlie',
+                          name='pose_broadcaster_node_charlie',
     )
 
 # Launch them all!
     return LaunchDescription([
         bicycle_model_node_charlie,
         velocity_model_node_charlie,
-        yaw_estimation_node_charlie,
+        pose_broadcaster_node_charlie,
     ])

@@ -11,16 +11,16 @@ class VelocityModelNodeCharlie(Node):
         super().__init__('velocity_model_node_charlie')
 
         # === Parámetros ===
-        self.dt = 0.05  # tiempo de muestreo (s)
+        self.dt = 1/20.0  # tiempo de muestreo (s)
         self.K = 0.026482
         self.tau = 0.20236
         self.max_angle_deg = 45.0
         self.min_angle_deg = -45.0
-        self.L = 0.3  # Distancia entre ejes del robot (m) - ajustar según tu robot
+        self.L = 0.26  # Distancia entre ejes del robot (m) - ajustar según tu robot
 
         # === Límite de PWM ===
         self.enable_pwm_limit = True  # Habilitar/deshabilitar límite de PWM
-        self.max_pwm_percent = 0.8  # Límite de PWM: ±70%
+        self.max_pwm_percent = 0.65  # Límite de PWM: ±65%
 
         # === Discretización (Euler hacia atrás) ===
         self.a1 = self.tau / (self.tau + self.dt)
@@ -45,12 +45,12 @@ class VelocityModelNodeCharlie(Node):
             10
         )
         
-        self.yaw_sub = self.create_subscription(
-            Float64,
-            '/yaw/fused',
-            self.yaw_callback,
-            10
-        )
+        # self.yaw_sub = self.create_subscription(
+        #     Float64,
+        #     '/yaw/fused',
+        #     self.yaw_callback,
+        #     10
+        # )
 
         # === Publicadores ===
         self.bicycle_pub = self.create_publisher(Float32MultiArray, '/bicycle_inputs', 10)
@@ -125,12 +125,12 @@ class VelocityModelNodeCharlie(Node):
         
         # === 4. Fusión de orientación ===
         # Fusión complementaria
-        self.yaw_fused_final = self.alpha_fusion * self.yaw_sensors + (1 - self.alpha_fusion) * self.yaw_model
+        # self.yaw_fused_final = self.alpha_fusion * self.yaw_sensors + (1 - self.alpha_fusion) * self.yaw_model
 
         # === 5. Publicar salidas ===
         # Publicar entradas del modelo de bicicleta
         bicycle_msg = Float32MultiArray()
-        bicycle_msg.data = [float(y), float(self.yaw_fused_final)]
+        bicycle_msg.data = [float(y), float(self.current_steer_angle)]
         self.bicycle_pub.publish(bicycle_msg)
         
         # # Publicar yaw del modelo

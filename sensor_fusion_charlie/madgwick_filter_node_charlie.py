@@ -154,7 +154,7 @@ class AckermannKinematics(Node):
         self.declare_parameter('max_steer', 0.5)
         self.declare_parameter('steer_slew', 10.0)
         self.declare_parameter('publish_tf', True)
-        self.declare_parameter('max_velocity_limit', 0.65)  # ⬅️ NUEVO: Límite del 80%
+        self.declare_parameter('max_velocity_limit', 1.0)  # ⬅️ NUEVO: Límite del 80%
 
         # Joint names
         self.declare_parameter('fl_steer_joint', 'front_left_steer_joint')
@@ -175,8 +175,8 @@ class AckermannKinematics(Node):
         self.declare_parameter('imu_topic', '/imu/data_raw')
         self.declare_parameter('mag_topic', '/imu/mag')
         self.declare_parameter('use_imu', True)
-        self.declare_parameter('madgwick_beta', 0.1)
-        self.declare_parameter('yaw_fuse_gain', 0.9)
+        self.declare_parameter('madgwick_beta', 0.05)
+        self.declare_parameter('yaw_fuse_gain', 0.5)
         self.declare_parameter('auto_yaw_align', True)
         self.declare_parameter('max_yaw_innov', 0.35)
         self.declare_parameter('accel_min_g', 6.0)
@@ -217,7 +217,7 @@ class AckermannKinematics(Node):
         self.theta_fl = 0.0; self.theta_fr = 0.0; self.theta_rl = 0.0; self.theta_rr = 0.0
 
         # Joystick velocity model - Discretización Euler hacia atrás (MENOS INERCIA)
-        K = 0.026482*1.3
+        K = 0.026482*0.8
         tau = 0.20236
         Ts = 1.0 / self.rate_hz  # Período de muestreo
         
@@ -426,7 +426,7 @@ class AckermannKinematics(Node):
         else:
             # No IMU → pure model
             self.yaw = yaw_pred
-        self.get_logger().info('Yaw: {:.3f} deg'.format(math.degrees(-self.yaw)))
+        self.get_logger().info('Yaw: {:.3f} deg'.format(math.degrees(self.yaw)))
         # Usar timestamp actual del sistema (no del timer)
         now = self.get_clock().now().to_msg()
         
